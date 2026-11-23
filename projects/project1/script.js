@@ -1,56 +1,90 @@
-let buffer;
-let brightness2D = []; // brightness2D[x][y] is how bright the word is at one pixel of the buffer
+let font;
+let fontPath = "HelveticaNeueLTCom-Bd.ttf";
+let fontSize = 170;
+let word = "magic";
+let particles = [];
+let isMagic = false;
 
 async function setup() {
-    createCanvas(windowWidth, windowHeight);
+  createCanvas(windowWidth, windowHeight, WEBGL);
 
-    // a small invisible canvas: the word is drawn on it once, and only used as data
-    buffer = createGraphics(120, 60);
-    buffer.background(0);
-    buffer.fill(255);
-    buffer.textStyle(BOLD);
-    buffer.textAlign(CENTER, CENTER);
-    buffer.textSize(40);
-    buffer.text("Type", buffer.width / 2, buffer.height / 2);
+  font = await loadFont(fontPath);
+  textFont(font);
+  textSize(fontSize);
 
-    // blur the word, so the edges of the letters become soft slopes instead of hard steps
-    // filter() is asynchronous in p5.js 2.x, so await it before reading pixels
-    await buffer.filter(BLUR, 1.2);
+  let bounds = font.textBounds(word, 0, 0);
 
-    // read the brightness of every pixel once: [0] is the red channel, 0 for black and 255 for white
-    for (let x = 0; x < buffer.width; x++) {
-        brightness2D[x] = [];
-        for (let y = 0; y < buffer.height; y++) {
-            brightness2D[x][y] = buffer.get(x, y)[0];
-        }
-    }
+  let points = font.textToPoints(word, -bounds.w / 2, bounds.h / 2, {
+    sampleFactor: 0.1,
+  });
+
+  for (let i = 0; i < points.length; i++) {
+    let radius = random(220, 420);
+    let angle = random(TWO_PI);
+
+    particles.push({
+      homeX: points[i].x,
+      homeY: points[i].y,
+      homeZ: 0,
+
+      radius: radius,
+      angle: angle,
+      speed: random(0.001, 0.004) * -1,
+      ySpread: random(-180, 280),
+      tilt: random(TWO_PI),
+      noiseOffset: random(1000), // 1000 so no number is too close - just points on the perlin noise line
+
+      x: cos(angle) * radius,
+      y: sin(angle) * 100,
+      z: sin(angle) * radius,
+    });
+  }
 }
 
 function draw() {
-    background(0);
-    stroke(255);
-    strokeWeight(2);
-    noFill();
+  background(0);
+  fill(255);
+  noStroke();
 
-    let stepX = width / buffer.width;   // distance between two points of a line
-    let stepY = height / buffer.height; // distance between two lines
+  for (let i = 0; i < particles.length; i++) {
+    let p = particles[i];
 
-    // mouseX sets how high the word is pushed up, mouseY sets how strongly the lines wobble
-    let amount = map(mouseX, 0, width, 0, 40);
-    let wobble = map(mouseY, 0, height, 0, 20);
+    // 1. Always advance the 3D circular orbit around (0, 0, 0)
+    p.angle += p.speed;
+    let orbitX = cos(p.angle) * p.radius;
+    let orbitY = sin(p.angle + p.tilt) * p.ySpread;
+    let orbitZ = sin(p.angle) * p.radius;
 
-    // one line for every row of the buffer
-    for (let y = 0; y < buffer.height; y++) {
-        beginShape();
-        for (let x = 0; x < buffer.width; x++) {
-            // bright pixels (the letters) push the line upward
-            let lift = brightness2D[x][y] / 255 * amount;
+    // 2. Minimal Perlin noise vibration when in "magic" form
+    let vibeAmount = 4; // max pixel distance of the vibration
+    let time = frameCount * 0.25; // higher = faster buzz, lower = slower hum
 
-            // smaller steps in noise() make the wobble slower and smoother
-            lift += noise(x * 0.05, y * 0.05, frameCount * 0.01) * wobble;
+    let vibeX = (noise(p.noiseOffset, time) - 0.5) * 2 * vibeAmount;
+    let vibeY = (noise(p.noiseOffset + 100, time) - 0.5) * 2 * vibeAmount;
+    let vibeZ = (noise(p.noiseOffset + 200, time) - 0.5) * 2 * vibeAmount;
 
-            vertex(x * stepX, y * stepY - lift);
-        }
-        endShape();
-    }
+    // 3. Choose target: vibrating "magic" letter point OR 3D orbit position
+    let targetX = isMagic ? p.homeX + vibeX : orbitX;
+    let targetY = isMagic ? p.homeY + vibeY : orbitY;
+    let targetZ = isMagic ? p.homeZ + vibeZ : orbitZ;
+
+    // 4. Smoothly glide toward the target like a magnet
+    p.x = lerp(p.x, targetX, 0.08);
+    p.y = lerp(p.y, targetY, 0.08);
+    p.z = lerp(p.z, targetZ, 0.08);
+
+    // 5. Draw each particle in 3D space
+    push();
+    translate(p.x, p.y, p.z);
+    sphere(2);
+    pop();
+  }
+}
+
+function mousePressed() {
+  isMagic = !isMagic;
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
 }
