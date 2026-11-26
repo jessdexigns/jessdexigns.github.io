@@ -13,7 +13,7 @@ let zoomStartTimeMs = 0;
 let isZooming = false;
 
 const CSV_FILENAME = "Top 10 Countries by Conflict Death Rate (2023).csv";
-const BG_IMAGE_FILENAME = "A_large_blank_world_map_with_oceans_marked_in_blue2.png";
+const BG_IMAGE_FILENAME = "BackgroundImg.png";
 const BG_MAX_ZOOM = 1.3; // +30% zoom towards the center in State 2
 const ZOOM_DURATION_MS = 1500; // 1.5 seconds
 const MAX_ZOOM_BLUR_PX = 3.5; // Gentle motion blur during zoom
